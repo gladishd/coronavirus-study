@@ -20,7 +20,7 @@ data = pd.read_csv(sys.argv[3])  # read in the data
 # turn it into a pandas dataframe
 df = pd.DataFrame(data, columns=['Country/Region', 'Last Update', 'Confirmed'])
 
-# Want: a separate column for each symbol.
+# Want: a separate column for each Country/Region.
 newColumns = np.append(['Last Update'], data['Country/Region'].unique())
 # So newColumns will be [Last Update, province 1, province 2, ...]
 
@@ -69,8 +69,9 @@ for day in range(0, max(df['Last Update'])):  # for all days 0, 1, ..., 35
     # Get all confirmed cases for that day
 
     if (len(values)):  # (if we had data for that day)
-        dfObj.loc[day] = [day, values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11], values[12],
-                          values[13], values[14], values[15], values[16], values[17], values[18], values[19], values[20], values[21], values[22], values[23], values[24], values[25], values[26], values[27], values[28], values[29], values[30], values[31]]
+        # dfObj.loc[day] = [day, values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], values[10], values[11], values[12],
+        #                   values[13], values[14], values[15], values[16], values[17], values[18], values[19], values[20], values[21], values[22], values[23], values[24], values[25], values[26], values[27], values[28], values[29], values[30], values[31]]
+        dfObj.loc[day] = [day, *values]
 
 # print(dfObj)
 # print(data)
@@ -111,22 +112,22 @@ countriesOriginal.pop(countriesOriginal.index(sys.argv[2]))
 
 # For each unique country, find its importance
 for countryID in range(0, len(X[0])):
-    prices130DaysForStock = [0] * max(df['Last Update'])
+    confirmedCases35DaysForCountry = [0] * max(df['Last Update'])
     for i in range(0, len(X)):
-        prices130DaysForStock[i] = X[i][countryID]
-    pearson_coef, p_value = stats.pearsonr(prices130DaysForStock, Y)
+        confirmedCases35DaysForCountry[i] = X[i][countryID]
+    pearson_coef, p_value = stats.pearsonr(confirmedCases35DaysForCountry, Y)
     countryRankings[countryID] = [pearson_coef, p_value,
                                   modelCoefficients[countryID], countryID, countriesOriginal[countryID]]
     countryRankings[countryID] = [
         0 if x != x else x for x in countryRankings[countryID]]
     # So each entry in countryRankings is
-    # [Pearson Coefficient, P-Value, Coefficient in all-30 linear model, its index out of all stocks in alphabetical order, and the symbol itself]
+    # [Pearson Coefficient, P-Value, Coefficient in all-32 linear model, its index out of all stocks in alphabetical order, and the symbol itself]
 
     # The p-value for each term tests the null hypothesis that the coefficient is equal to zero (no effect)
     # Want: lowest p-value, greatest pearson coefficient, greatest coefficient
     ax[math.floor(countryID / 6), countryID %
-       6].scatter(prices130DaysForStock, Y, s=5, alpha=0.5, c='b')
-    # Plot the closing price of the symbol, and the closing price of the Dow Jones Industrial Average
+       6].scatter(confirmedCases35DaysForCountry, Y, s=5, alpha=0.5, c='b')
+    # Plot the confirmed cases of the country, and the confirmed cases of country Y.
 
     ax[math.floor(countryID / 6), countryID %
        6].set(title=countriesOriginal[countryID])  # set title
@@ -144,12 +145,12 @@ countryRankings = [i for i in countryRankings if i]  # Remove None values
 # sort from largest pearson correlation coefficient to smallest
 countryRankings = sorted(countryRankings, key=lambda x: (-x[0]))
 
-# If the p-value is greater than 0.05, then there's a chance that the symbol isn't really correlated with the .DJI index
+# If the p-value is greater than 0.05, then there's a chance that in the context of coronavirus cases, the country isn't really correlated with country Y.
 # So, we need to move countries with large p-values (low statistical significance) to the end of the ranking
 statisticallySignificantValues = list(
     filter(lambda x: x[1] <= 0.05, countryRankings))
 
-# Anything with a p-value larger than 5% means the stock may really not be correlated with the .DJI at all.
+# Anything with a p-value larger than 5% means the country may really not be correlated with country Y at all.
 # That's the tradition in statistics, so I'm just using 0.05 as the cutoff point.
 nonSignificantValues = filter(lambda x: x[1] > 0.05, countryRankings)
 
@@ -166,7 +167,7 @@ countryRankingsTopN = countryRankings[:int(sys.argv[1])]
 # This will have the indices of the countries we are going to include
 columnIndices = []
 
-# Find which column numbers from dfObj correspond to the top N stocks we found
+# Find which column numbers from dfObj correspond to the top N countries we found
 for x in countryRankingsTopN:
     columnIndices.append(list(dfObj.columns).index(x[4]))
 columnIndices = list(columnIndices)
@@ -178,14 +179,14 @@ dfObjTopNRegions = dfObj.iloc[:, columnIndices]
 # Within this array, each subarray represents one row of the original dataframe.
 dfObjTopNRegions = dfObjTopNRegions.values.reshape(-1, int(sys.argv[1]))
 
-# So Y is an array with all .DJI index values
+# So Y is an array with all country Y confirmed case values.
 model = LinearRegression(fit_intercept=False).fit(dfObjTopNRegions, Y)
 
 # The output of the model needs to be flattened and converted into the list datatype
 modelCoefficients = list(model.coef_.flatten())
 
 # Want to print this or alternatively write this to .csv depending on how approximate_index.py is invoked
-# (python3 approximate_index.py 3 .DJI dow_jones_historical_prices.csv > approximation.csv)
+# (python3 approximate_confirmed.py 3 Mainland\ China 2019_nCoV_2020_0121_20200205.csv > approximation.csv)
 res = pd.DataFrame(columns=['Country/Region', 'Weight'])
 # Now, find the columns at those indices and then get the column names from the .columns property
 res['Country/Region'] = list(dfObj.iloc[:, columnIndices].columns)
